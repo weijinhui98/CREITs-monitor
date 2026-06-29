@@ -1,13 +1,11 @@
-st https = require('https');
+const https = require('https');
 const querystring = require('querystring');
 
 module.exports = function handler(req, res) {
-    if (req.method === 'OPTIONS') {
-        res.status(200).json({});
-        return;
-    }
-
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') return res.status(200).end();
     const pageSize = (req.query && req.query.pageSize) || '30';
+    
     const postData = querystring.stringify({
         sqlId: 'REITS_BULLETIN', isPagination: 'true',
         fundCode: '', startDate: '', endDate: '',
@@ -17,29 +15,25 @@ module.exports = function handler(req, res) {
 
     return new Promise((resolve) => {
         const hReq = https.request({
-            hostname: 'query.sse.com.cn', port: 443, path: '/commonSoaQuery.do', method: 'POST',
+            hostname: 'query.sse.com.cn', port: 443,
+            path: '/commonSoaQuery.do', method: 'POST',
             headers: {
                 'Referer': 'https://www.sse.com.cn/',
                 'User-Agent': 'Mozilla/5.0',
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Content-Length': Buffer.byteLength(postData)
-            },
-            timeout: 10000
+            }, timeout: 10000
         }, (hRes) => {
             let body = '';
             hRes.on('data', c => body += c);
             hRes.on('end', () => {
-                res.setHeader('Access-Control-Allow-Origin', '*');
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).send(body);
                 resolve();
             });
         });
-        hReq.on('error', (e) => {
-            res.status(500).json({ error: e.message });
-            resolve();
-        });
-        hReq.write(postData);
-        hReq.end();
+        hReq.on('error', (e) => { res.status(500).json({error:e.message}); resolve(); });
+        hReq.on('timeout', () => { hReq.destroy(); res.status(504).json({error:'timeout'}); resolve(); });
+        hReq.write(postData); hReq.end();
     });
 };
