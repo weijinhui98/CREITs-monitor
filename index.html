@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>REITs 公告监控</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#0f1923;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a3a4a,#0d2130);padding:12px 16px;border-bottom:2px solid #2a5a7a;position:sticky;top:0;z-index:100;text-align:center}
+.header h1{color:#5cf;font-size:18px;margin:0}
+.header .sub{color:#8899aa;font-size:11px;margin-top:3px}
+.main{padding:10px;max-width:900px;margin:0 auto}
+.stats{display:flex;gap:8px;margin-bottom:10px;text-align:center}
+.stat{background:#162530;border:1px solid #2a4a5a;border-radius:8px;padding:8px 12px;flex:1}
+.stat .n{font-size:20px;font-weight:700;color:#5cf}
+.stat .l{font-size:10px;color:#8899aa}
+.toolbar{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tab-btn{padding:6px 14px;border:1px solid #2a5a7a;background:#162530;color:#8899aa;border-radius:16px;cursor:pointer;font-size:12px;white-space:nowrap}
+.tab-btn.active{background:#1a5a8a;color:#fff;border-color:#3a8ac0}
+input{padding:8px 12px;background:#162530;border:1px solid #2a5a7a;border-radius:8px;color:#e0e0e0;font-size:12px;outline:none;-webkit-appearance:none;flex:1;min-width:100px}
+input:focus{border-color:#3a8ac0}
+table{width:100%;border-collapse:collapse;background:#162530;border-radius:8px;overflow:hidden}
+th{background:#1a3a4a;color:#5cf;padding:10px 8px;text-align:left;font-size:12px;border-bottom:2px solid #2a5a7a}
+td{padding:8px;border-bottom:1px solid #1a2a3a;font-size:12px;vertical-align:top}
+tr:hover{background:#1a3040}
+a{color:#5cf;text-decoration:none}
+.foot{text-align:center;color:#556;font-size:10px;padding:15px}
+.loading{text-align:center;padding:40px;color:#667788}
+@media(max-width:600px){td{font-size:11px;padding:6px 4px}th{font-size:10px;padding:8px 4px}}
+</style>
+</head>
+<body>
+<div class="header"><h1>REITs 公告监控</h1><div class="sub">数据实时加载 | <span id="ut">--</span></div></div>
+<div class="main">
+<div class="stats">
+<div class="stat"><div class="n" id="sseN">-</div><div class="l">上交所 SSE</div></div>
+<div class="stat"><div class="n" id="szseN">-</div><div class="l">深交所 SZSE</div></div>
+<div class="stat"><div class="n" id="totalN">-</div><div class="l">总计</div></div>
+</div>
+<div class="toolbar">
+<button class="tab-btn active" onclick="switchTab('all')">全部</button>
+<button class="tab-btn" onclick="switchTab('sse')">SSE</button>
+<button class="tab-btn" onclick="switchTab('szse')">SZSE</button>
+<input placeholder="搜索..." id="q" oninput="render()">
+</div>
+<div id="content"><div class="loading">加载中...</div></div>
+<div class="foot">REITs 公告监控 | 纯浏览器版</div>
+</div>
+<script>
+var DATA={sse:[],szse:[]},tab='all';
+
+function fmt(n){return n||'-'}
+function loadSSE(cb){
+    var s=document.createElement('script');
+    var cbName='_sse'+Date.now();
+    window[cbName]=function(d){
+        DATA.sse=(d.pageHelp.data||[]).map(function(i){
+            var u=i.url||'';
+            if(u&&!u.startsWith('http'))u='https://www.sse.com.cn'+u;
+            return{code:i.securityCode||'',name:i.fundExtAbbr||i.fundAbbr||'',title:i.title||'',date:i.sseDate||'',url:u,ex:'SSE'};
+        });
+        document.getElementById('sseN').textContent=DATA.sse.length;
+        document.getElementById('totalN').textContent=DATA.sse.length+DATA.szse.length;
+        cb();
+    };
+    s.src='https://query.sse.com.cn/commonSoaQuery.do?jsonCallBack='+cbName+'&sqlId=REITS_BULLETIN&isPagination=true&pageHelp.pageSize=30&pageHelp.pageNo=1&startDate=&endDate=';
+    s.onerror=function(){cb()};
+    document.head.appendChild(s);
+}
+function loadSZSE(cb){
+    fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=30&pageNum=1')
+    .then(function(r){return r.json()})
+    .then(function(d){
+        DATA.szse=(d.data||[]).map(function(i){
+            var u=i.attachPath||'';
+            if(u&&!u.startsWith('http'))u='https://disc.static.szse.cn'+u;
+            return{code:i.secCode||'',name:i.secName||'',title:i.title||'',date:i.publishTime?i.publishTime.substring(0,10):'',url:u,ex:'SZSE'};
+        });
+        document.getElementById('szseN').textContent=DATA.szse.length;
+        document.getElementById('totalN').textContent=DATA.sse.length+DATA.szse.length;
+        cb();
+    }).catch(function(){cb()});
+}
+function switchTab(t){tab=t;document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});event.target.classList.add('active');render()}
+function render(){
+    var items=tab==='all'?DATA.sse.concat(DATA.szse):tab==='sse'?DATA.sse:DATA.szse;
+    var q=document.getElementById('q').value.toLowerCase();
+    if(q)items=items.filter(function(i){return(i.code+i.name+i.title).toLowerCase().indexOf(q)>=0});
+    items.sort(function(a,b){return b.date.localeCompare(a.date)});
+    var el=document.getElementById('content');
+    if(!items.length){el.innerHTML='<div class="loading">暂无公告</div>';return}
+    document.getElementById('ut').textContent=new Date().toLocaleString('zh-CN');
+    el.innerHTML='<table><thead><tr><th>代码</th><th>简称</th><th>标题</th><th>日期</th></tr></thead><tbody>'+items.map(function(i){
+        return'<tr><td><span style="color:'+(i.ex==='SSE'?'#5cf':'#fa0')+'">'+i.ex+'</span> '+fmt(i.code)+'</td><td>'+fmt(i.name)+'</td><td><a href="'+fmt(i.url)+'" target="_blank">'+fmt(i.title)+'</a></td><td>'+fmt(i.date)+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+var loaded=0;
+function check(){loaded++;if(loaded>=2){render()}}
+loadSSE(check);loadSZSE(check);
+</script>
+</body>
+</html>
