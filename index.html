@@ -1,17 +1,1 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Test</title></head><body>
-<h2>REITs Test</h2>
-<div id="sse">SSE: loading...</div>
-<div id="szse">SZSE: loading...</div>
-<script>
-// SSE
-fetch('/api/sse?pageSize=3')
-.then(r => r.json())
-.then(d => { document.getElementById('sse').innerHTML = 'SSE OK: ' + (d.pageHelp?.data?.length || 0) + ' items'; })
-.catch(e => { document.getElementById('sse').innerHTML = 'SSE FAIL: ' + e.message; });
 
-// SZSE
-fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=3&pageNum=1')
-.then(r => r.json())
-.then(d => { document.getElementById('szse').innerHTML = 'SZSE OK: ' + (d.data?.length || 0) + ' items'; })
-.catch(e => { document.getElementById('szse').innerHTML = 'SZSE FAIL: ' + e.message; });
-</script></body></html>
