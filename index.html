@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -122,18 +122,16 @@ function check(){
 }
 
 document.getElementById('status').textContent='加载 SSE...';
-var s=document.createElement('script');
-s.src='https://query.sse.com.cn/commonSoaQuery.do?jsonCallBack=_sse&sqlId=REITS_BULLETIN&isPagination=true&pageHelp.pageSize=50&pageHelp.pageNo=1&startDate=&endDate=';
-window._sse=function(d){
+fetch('/api/sse?pageSize=50')
+.then(function(r){return r.json()})
+.then(function(d){
     DATA.sse=(d.pageHelp.data||[]).map(function(i){
         var u=i.url||'';if(u&&!u.startsWith('http'))u='https://www.sse.com.cn'+u;
         return{code:i.securityCode||'',name:i.fundExtAbbr||i.fundAbbr||'',title:i.title||'',date:i.sseDate||'',url:u,ex:'SSE'};
     });
     document.getElementById('status').textContent='SSE OK, 加载 SZSE...';
     check();
-};
-s.onerror=function(){document.getElementById('status').textContent='SSE 加载失败';check()};
-document.head.appendChild(s);
+}).catch(function(e){document.getElementById('status').textContent='SSE err: '+e.message;check()});
 
 document.getElementById('status').textContent='加载 SZSE...';
 fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=50&pageNum=1')
@@ -148,3 +146,4 @@ fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=50&page
 </script>
 </body>
 </html>
+
