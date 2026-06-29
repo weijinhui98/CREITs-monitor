@@ -1,4 +1,4 @@
-﻿const https = require('https');
+const https = require('https');
 const querystring = require('querystring');
 
 module.exports = function handler(req, res) {
