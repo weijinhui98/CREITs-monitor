@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -27,77 +27,124 @@ tr:hover{background:#1a3040}
 a{color:#5cf;text-decoration:none}
 .foot{text-align:center;color:#556;font-size:10px;padding:15px}
 .loading{text-align:center;padding:40px;color:#667788}
+.cat-bar{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding:2px 0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.cat-bar::-webkit-scrollbar{display:none}
+.cat-pill{padding:5px 12px;border:1px solid #2a5a7a;background:#162530;color:#8899aa;border-radius:14px;cursor:pointer;font-size:11px;white-space:nowrap;flex-shrink:0}
+.cat-pill.active{background:#0d4a6a;color:#5cf;border-color:#2a7aaa}
+.cat-pill .cnt{font-size:10px;color:#667788;margin-left:2px}
+.cat-pill.active .cnt{color:#5cf}
+.notif-bar{background:#2a3a1a;border:1px solid #4a6a2a;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;display:none;text-align:center}
+.toast{position:fixed;bottom:20px;left:10px;right:10px;background:#1a3a4a;border:1px solid #3a8ac0;border-radius:10px;padding:12px 16px;z-index:999;color:#fff;font-size:13px;text-align:center;display:none}
+.empty{text-align:center;padding:40px;color:#667788}
 @media(max-width:600px){td{font-size:11px;padding:6px 4px}th{font-size:10px;padding:8px 4px}}
 </style>
 </head>
 <body>
-<div class="header"><h1>REITs 公告监控</h1><div class="sub">数据实时加载 | <span id="ut">--</span></div></div>
+<div class="header"><h1>REITs 公告监控</h1><div class="sub" id="status">加载中...</div></div>
 <div class="main">
 <div class="stats">
 <div class="stat"><div class="n" id="sseN">-</div><div class="l">上交所 SSE</div></div>
 <div class="stat"><div class="n" id="szseN">-</div><div class="l">深交所 SZSE</div></div>
-<div class="stat"><div class="n" id="totalN">-</div><div class="l">总计</div></div>
+<div class="stat"><div class="n" id="newN" style="color:#f44336">-</div><div class="l">新增</div></div>
 </div>
 <div class="toolbar">
 <button class="tab-btn active" onclick="switchTab('all')">全部</button>
 <button class="tab-btn" onclick="switchTab('sse')">SSE</button>
 <button class="tab-btn" onclick="switchTab('szse')">SZSE</button>
-<input placeholder="搜索..." id="q" oninput="render()">
+<input placeholder="搜索代码/简称/标题..." id="q" oninput="render()">
 </div>
-<div id="content"><div class="loading">加载中...</div></div>
-<div class="foot">REITs 公告监控 | 纯浏览器版</div>
+<div class="cat-bar" id="catBar"></div>
+<div id="content"><div class="loading">加载中，请稍候...</div></div>
+<div class="foot">REITs 公告监控 | 数据实时加载 | <span id="ut">--</span></div>
 </div>
+<div class="toast" id="toast"><span id="toastMsg"></span><span onclick="this.parentElement.style.display='none'" style="margin-left:10px;color:#8899aa;cursor:pointer">&times;</span></div>
 <script>
-var DATA={sse:[],szse:[]},tab='all';
+var DATA={sse:[],szse:[]},tab='all',catFilter='all',seen=JSON.parse(localStorage.getItem('reits_v4')||'{}');
+
+var CATS=[{k:'operating',l:'运营数据',w:['运营数据','经营数据']},{k:'periodic',l:'定期报告',w:['年报','半年报','季度报告']},{k:'dividend',l:'收益分配',w:['收益分配','分红','派息']},{k:'product',l:'产品文件',w:['招募说明书','基金合同','产品资料概要']},{k:'ipo',l:'发售上市',w:['发售公告','上市交易','询价','战略配售','认购','发售']},{k:'meeting',l:'持有人大会',w:['持有人大会','投票','表决']},{k:'manager',l:'管理人变更',w:['管理人变更','高级管理人员','基金经理']},{k:'nav',l:'净值估值',w:['净值','估值']},{k:'trading',l:'交易提示',w:['交易提示','停牌','复牌','风险提示']},{k:'material',l:'重大事项',w:['资产收购','资产处置','关联交易','扩募','解除限售']},{k:'investor',l:'投资者关系',w:['开放日','说明会']},{k:'legal',l:'法律意见',w:['法律意见书','律师事务所','核查']},{k:'other',l:'其他',w:[]}];
+function cls(t){for(var i=0;i<CATS.length;i++){var c=CATS[i];if(!c.w.length)continue;for(var j=0;j<c.w.length;j++){if(t.indexOf(c.w[j])>=0)return c.k}}return'other'}
+function clb(k){for(var i=0;i<CATS.length;i++){if(CATS[i].k===k)return CATS[i].l}return k}
 
 function fmt(n){return n||'-'}
-function loadSSE(cb){
-    var s=document.createElement('script');
-    var cbName='_sse'+Date.now();
-    window[cbName]=function(d){
-        DATA.sse=(d.pageHelp.data||[]).map(function(i){
-            var u=i.url||'';
-            if(u&&!u.startsWith('http'))u='https://www.sse.com.cn'+u;
-            return{code:i.securityCode||'',name:i.fundExtAbbr||i.fundAbbr||'',title:i.title||'',date:i.sseDate||'',url:u,ex:'SSE'};
-        });
-        document.getElementById('sseN').textContent=DATA.sse.length;
-        document.getElementById('totalN').textContent=DATA.sse.length+DATA.szse.length;
-        cb();
-    };
-    s.src='https://query.sse.com.cn/commonSoaQuery.do?jsonCallBack='+cbName+'&sqlId=REITS_BULLETIN&isPagination=true&pageHelp.pageSize=30&pageHelp.pageNo=1&startDate=&endDate=';
-    s.onerror=function(){cb()};
-    document.head.appendChild(s);
-}
-function loadSZSE(cb){
-    fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=30&pageNum=1')
-    .then(function(r){return r.json()})
-    .then(function(d){
-        DATA.szse=(d.data||[]).map(function(i){
-            var u=i.attachPath||'';
-            if(u&&!u.startsWith('http'))u='https://disc.static.szse.cn'+u;
-            return{code:i.secCode||'',name:i.secName||'',title:i.title||'',date:i.publishTime?i.publishTime.substring(0,10):'',url:u,ex:'SZSE'};
-        });
-        document.getElementById('szseN').textContent=DATA.szse.length;
-        document.getElementById('totalN').textContent=DATA.sse.length+DATA.szse.length;
-        cb();
-    }).catch(function(){cb()});
-}
-function switchTab(t){tab=t;document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});event.target.classList.add('active');render()}
 function render(){
     var items=tab==='all'?DATA.sse.concat(DATA.szse):tab==='sse'?DATA.sse:DATA.szse;
+    if(catFilter!=='all')items=items.filter(function(i){return i.cat===catFilter});
     var q=document.getElementById('q').value.toLowerCase();
     if(q)items=items.filter(function(i){return(i.code+i.name+i.title).toLowerCase().indexOf(q)>=0});
     items.sort(function(a,b){return b.date.localeCompare(a.date)});
-    var el=document.getElementById('content');
-    if(!items.length){el.innerHTML='<div class="loading">暂无公告</div>';return}
+    
+    var newIds=[];items.forEach(function(i){if(!seen[i.id])newIds.push(i)});
+    document.getElementById('newN').textContent=newIds.length;
+    if(newIds.length>0&&localStorage.getItem('reits_v4')){
+        document.getElementById('toastMsg').textContent=newIds.length+' 条新公告';
+        document.getElementById('toast').style.display='block';
+        setTimeout(function(){document.getElementById('toast').style.display='none'},8000);
+        if('Notification' in window&&Notification.permission==='granted'){
+            new Notification('REITs',{body:newIds.length+' new',tag:'r'});
+        }
+    }
+    
+    var cm={};items.forEach(function(i){cm[i.cat]=(cm[i.cat]||0)+1});
+    var catHtml='<span class="cat-pill'+(catFilter==='all'?' active':'')+'" onclick="switchCat(\'all\')">All('+items.length+')</span>';
+    CATS.forEach(function(c){if(cm[c.k])catHtml+='<span class="cat-pill'+(catFilter===c.k?' active':'')+'" onclick="switchCat(\''+c.k+'\')">'+c.l+'<span class="cnt">'+cm[c.k]+'</span></span>'});
+    document.getElementById('catBar').innerHTML=catHtml;
+    
     document.getElementById('ut').textContent=new Date().toLocaleString('zh-CN');
-    el.innerHTML='<table><thead><tr><th>代码</th><th>简称</th><th>标题</th><th>日期</th></tr></thead><tbody>'+items.map(function(i){
-        return'<tr><td><span style="color:'+(i.ex==='SSE'?'#5cf':'#fa0')+'">'+i.ex+'</span> '+fmt(i.code)+'</td><td>'+fmt(i.name)+'</td><td><a href="'+fmt(i.url)+'" target="_blank">'+fmt(i.title)+'</a></td><td>'+fmt(i.date)+'</td></tr>';
+    document.getElementById('status').textContent='SSE:'+DATA.sse.length+' SZSE:'+DATA.szse.length;
+    
+    if(!items.length){document.getElementById('content').innerHTML='<div class="empty">无匹配公告</div>';return}
+    document.getElementById('content').innerHTML='<table><thead><tr><th>代码</th><th>简称</th><th>标题</th><th>日期</th><th>类型</th></tr></thead><tbody>'+items.slice(0,100).map(function(i){
+        return'<tr><td><span style="color:'+(i.ex==='SSE'?'#5cf':'#fa0')+'">'+i.ex+'</span> '+fmt(i.code)+'</td><td>'+fmt(i.name)+'</td><td><a href="'+fmt(i.url)+'" target="_blank">'+fmt(i.title)+'</a></td><td>'+fmt(i.date)+'</td><td style="color:#fa0;font-size:11px">'+clb(i.cat)+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
-var loaded=0;
-function check(){loaded++;if(loaded>=2){render()}}
-loadSSE(check);loadSZSE(check);
+
+function switchCat(k){catFilter=k;render()}
+function switchTab(t){tab=t;document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});event.target.classList.add('active');render()}
+
+var done=0;
+function check(){
+    done++;
+    if(done>=2){
+        DATA.sse.forEach(function(i){i.cat=cls(i.title);i.id=btoa(i.code+i.date+i.title.substring(0,20))});
+        DATA.szse.forEach(function(i){i.cat=cls(i.title);i.id=i.code+i.date+i.title.substring(0,30)});
+        render();
+        document.getElementById('sseN').textContent=DATA.sse.length;
+        document.getElementById('szseN').textContent=DATA.szse.length;
+        var all=DATA.sse.concat(DATA.szse);
+        all.forEach(function(i){if(!seen[i.id]){seen[i.id]=1}});
+        localStorage.setItem('reits_v4',JSON.stringify(seen));
+        if('Notification' in window&&Notification.permission==='default'){
+            var bar=document.createElement('div');bar.className='notif-bar';
+            bar.innerHTML='<button onclick="Notification.requestPermission();this.parentElement.remove()" style="background:#3a6a2a;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:12px">开启桌面通知</button>';
+            bar.style.display='block';document.querySelector('.main').insertBefore(bar,document.querySelector('.toolbar'));
+        }
+    }
+}
+
+document.getElementById('status').textContent='加载 SSE...';
+var s=document.createElement('script');
+s.src='https://query.sse.com.cn/commonSoaQuery.do?jsonCallBack=_sse&sqlId=REITS_BULLETIN&isPagination=true&pageHelp.pageSize=50&pageHelp.pageNo=1&startDate=&endDate=';
+window._sse=function(d){
+    DATA.sse=(d.pageHelp.data||[]).map(function(i){
+        var u=i.url||'';if(u&&!u.startsWith('http'))u='https://www.sse.com.cn'+u;
+        return{code:i.securityCode||'',name:i.fundExtAbbr||i.fundAbbr||'',title:i.title||'',date:i.sseDate||'',url:u,ex:'SSE'};
+    });
+    document.getElementById('status').textContent='SSE OK, 加载 SZSE...';
+    check();
+};
+s.onerror=function(){document.getElementById('status').textContent='SSE 加载失败';check()};
+document.head.appendChild(s);
+
+document.getElementById('status').textContent='加载 SZSE...';
+fetch('https://reits.szse.cn/api/disc/info/find/tannInfo?type=4&pageSize=50&pageNum=1')
+.then(function(r){return r.json()}).then(function(d){
+    DATA.szse=(d.data||[]).map(function(i){
+        var u=i.attachPath||'';if(u&&!u.startsWith('http'))u='https://disc.static.szse.cn'+u;
+        return{code:i.secCode||'',name:i.secName||'',title:i.title||'',date:i.publishTime?i.publishTime.substring(0,10):'',url:u,ex:'SZSE'};
+    });
+    document.getElementById('status').textContent='SZSE OK';
+    check();
+}).catch(function(e){document.getElementById('status').textContent='SZSE err: '+e.message;check()});
 </script>
 </body>
 </html>
