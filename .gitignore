@@ -1,0 +1,11 @@
+node_modules/
+reits_seen.json
+*.log
+cf_stderr.txt
+cf_stdout.txt
+server_stdout.txt
+server_stderr.txt
+ngrok_stdout.txt
+ngrok_stderr.txt
+current_url.txt
+watchdog.log
